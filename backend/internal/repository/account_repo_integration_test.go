@@ -142,6 +142,35 @@ func (s *AccountRepoSuite) TestUpdate_SyncSchedulerSnapshotOnDisabled() {
 	s.Require().Equal(service.StatusDisabled, cacheRecorder.setAccounts[0].Status)
 }
 
+func (s *AccountRepoSuite) TestUpdate_SyncSchedulerSnapshotOnCredentialsChange() {
+	account := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:        "sync-credentials-update",
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				"gpt-5": "gpt-5.1",
+			},
+		},
+	})
+	cacheRecorder := &schedulerCacheRecorder{}
+	s.repo.schedulerCache = cacheRecorder
+
+	account.Credentials = map[string]any{
+		"model_mapping": map[string]any{
+			"gpt-5": "gpt-5.2",
+		},
+	}
+	err := s.repo.Update(s.ctx, account)
+	s.Require().NoError(err, "Update")
+
+	s.Require().Len(cacheRecorder.setAccounts, 1)
+	s.Require().Equal(account.ID, cacheRecorder.setAccounts[0].ID)
+	mapping, ok := cacheRecorder.setAccounts[0].Credentials["model_mapping"].(map[string]any)
+	s.Require().True(ok)
+	s.Require().Equal("gpt-5.2", mapping["gpt-5"])
+}
+
 func (s *AccountRepoSuite) TestDelete() {
 	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "to-delete"})
 
@@ -185,6 +214,7 @@ func (s *AccountRepoSuite) TestListWithFilters() {
 		accType   string
 		status    string
 		search    string
+		groupID   int64
 		wantCount int
 		validate  func(accounts []service.Account)
 	}{
@@ -236,6 +266,21 @@ func (s *AccountRepoSuite) TestListWithFilters() {
 				s.Require().Contains(accounts[0].Name, "alpha")
 			},
 		},
+		{
+			name: "filter_by_ungrouped",
+			setup: func(client *dbent.Client) {
+				group := mustCreateGroup(s.T(), client, &service.Group{Name: "g-ungrouped"})
+				grouped := mustCreateAccount(s.T(), client, &service.Account{Name: "grouped-account"})
+				mustCreateAccount(s.T(), client, &service.Account{Name: "ungrouped-account"})
+				mustBindAccountToGroup(s.T(), client, grouped.ID, group.ID, 1)
+			},
+			groupID:   service.AccountListGroupUngrouped,
+			wantCount: 1,
+			validate: func(accounts []service.Account) {
+				s.Require().Equal("ungrouped-account", accounts[0].Name)
+				s.Require().Empty(accounts[0].GroupIDs)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -248,7 +293,7 @@ func (s *AccountRepoSuite) TestListWithFilters() {
 
 			tt.setup(client)
 
-			accounts, _, err := repo.ListWithFilters(ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, tt.platform, tt.accType, tt.status, tt.search, 0)
+			accounts, _, err := repo.ListWithFilters(ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, tt.platform, tt.accType, tt.status, tt.search, tt.groupID)
 			s.Require().NoError(err)
 			s.Require().Len(accounts, tt.wantCount)
 			if tt.validate != nil {
