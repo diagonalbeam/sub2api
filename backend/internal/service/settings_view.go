@@ -41,8 +41,8 @@ type SystemSettings struct {
 	HideCcsImportButton         bool
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
-	SoraClientEnabled           bool
 	CustomMenuItems             string // JSON array of custom menu items
+	CustomEndpoints             string // JSON array of custom endpoints
 
 	DefaultConcurrency   int
 	DefaultBalance       float64
@@ -74,6 +74,10 @@ type SystemSettings struct {
 
 	// Backend 模式：禁用用户注册和自助服务，仅管理员可登录
 	BackendModeEnabled bool
+
+	// Gateway forwarding behavior
+	EnableFingerprintUnification bool // 是否统一 OAuth 账号的指纹头（默认 true）
+	EnableMetadataPassthrough    bool // 是否透传客户端原始 metadata（默认 false）
 }
 
 type DefaultSubscriptionSetting struct {
@@ -102,52 +106,12 @@ type PublicSettings struct {
 
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
-	SoraClientEnabled           bool
 	CustomMenuItems             string // JSON array of custom menu items
+	CustomEndpoints             string // JSON array of custom endpoints
 
 	LinuxDoOAuthEnabled bool
 	BackendModeEnabled  bool
 	Version             string
-}
-
-// SoraS3Settings Sora S3 存储配置
-type SoraS3Settings struct {
-	Enabled                   bool   `json:"enabled"`
-	Endpoint                  string `json:"endpoint"`
-	Region                    string `json:"region"`
-	Bucket                    string `json:"bucket"`
-	AccessKeyID               string `json:"access_key_id"`
-	SecretAccessKey           string `json:"secret_access_key"`            // 仅内部使用，不直接返回前端
-	SecretAccessKeyConfigured bool   `json:"secret_access_key_configured"` // 前端展示用
-	Prefix                    string `json:"prefix"`
-	ForcePathStyle            bool   `json:"force_path_style"`
-	CDNURL                    string `json:"cdn_url"`
-	DefaultStorageQuotaBytes  int64  `json:"default_storage_quota_bytes"`
-}
-
-// SoraS3Profile Sora S3 多配置项（服务内部模型）
-type SoraS3Profile struct {
-	ProfileID                 string `json:"profile_id"`
-	Name                      string `json:"name"`
-	IsActive                  bool   `json:"is_active"`
-	Enabled                   bool   `json:"enabled"`
-	Endpoint                  string `json:"endpoint"`
-	Region                    string `json:"region"`
-	Bucket                    string `json:"bucket"`
-	AccessKeyID               string `json:"access_key_id"`
-	SecretAccessKey           string `json:"-"`                            // 仅内部使用，不直接返回前端
-	SecretAccessKeyConfigured bool   `json:"secret_access_key_configured"` // 前端展示用
-	Prefix                    string `json:"prefix"`
-	ForcePathStyle            bool   `json:"force_path_style"`
-	CDNURL                    string `json:"cdn_url"`
-	DefaultStorageQuotaBytes  int64  `json:"default_storage_quota_bytes"`
-	UpdatedAt                 string `json:"updated_at"`
-}
-
-// SoraS3ProfileList Sora S3 多配置列表
-type SoraS3ProfileList struct {
-	ActiveProfileID string          `json:"active_profile_id"`
-	Items           []SoraS3Profile `json:"items"`
 }
 
 // StreamTimeoutSettings 流超时处理配置（仅控制超时后的处理方式，超时判定由网关配置控制）
@@ -184,9 +148,11 @@ func DefaultStreamTimeoutSettings() *StreamTimeoutSettings {
 
 // RectifierSettings 请求整流器配置
 type RectifierSettings struct {
-	Enabled                  bool `json:"enabled"`                    // 总开关
-	ThinkingSignatureEnabled bool `json:"thinking_signature_enabled"` // Thinking 签名整流
-	ThinkingBudgetEnabled    bool `json:"thinking_budget_enabled"`    // Thinking Budget 整流
+	Enabled                  bool     `json:"enabled"`                    // 总开关
+	ThinkingSignatureEnabled bool     `json:"thinking_signature_enabled"` // Thinking 签名整流
+	ThinkingBudgetEnabled    bool     `json:"thinking_budget_enabled"`    // Thinking Budget 整流
+	APIKeySignatureEnabled   bool     `json:"apikey_signature_enabled"`   // API Key 签名整流开关
+	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`  // API Key 自定义匹配关键词
 }
 
 // DefaultRectifierSettings 返回默认的整流器配置（全部启用）
